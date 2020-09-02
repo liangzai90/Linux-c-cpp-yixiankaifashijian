@@ -267,5 +267,10 @@ int main(int argc, char* argv[])
 4.守护进程都是各自进程组合会话过程的唯一进程
 
 
+查看守护进程：
+```bash
+ps axj
+```
+
 
 End

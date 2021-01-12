@@ -234,7 +234,51 @@ int main(int argc, char *argv[]) {
 所谓管道，是指用于连接读进程和写进程，以实现他们之间通信的共享文件，故又称管道文件。
 可以说管道是一种先进先出的方式，保存一定数量数据的特殊文件，而且管道一般是单向的。
 
-
+父子进程使用管道通信
+```cpp
+#include <unistd.h>  
+#include <string.h>  
+#include <stdlib.h>  
+#include <stdio.h>  
+#include <sys/wait.h>  
+      
+void sys_err(const char *str)  
+{  
+	perror(str);  
+	exit(1);  
+}  
+      
+int main(void)  
+{  
+	pid_t pid;  
+	char buf[1024];  
+	int fd[2];  
+	char p[] = "test for pipe\n";  
+          
+	if (pipe(fd) == -1)   
+		sys_err("pipe");  
+      
+	pid = fork();  
+	if (pid < 0) {  
+		sys_err("fork err");  
+	}
+	else if (pid == 0) {  
+		close(fd[1]);  
+		printf("child process wait to read:\n");
+		int len = read(fd[0], buf, sizeof(buf));  
+		write(STDOUT_FILENO, buf, len);  
+		close(fd[0]);  
+	}
+	else {  
+		close(fd[0]);  
+		write(fd[1], p, strlen(p));  
+		wait(NULL);  
+		close(fd[1]);  
+	}  
+          
+	return 0;  
+}  
+```
 
 
 

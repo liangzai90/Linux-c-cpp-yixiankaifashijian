@@ -317,20 +317,247 @@ int main(void)
 ```
 
 
+## 消息队列
+Linux提供了一组消息队列函数让我们使用消息队列。
+```cpp
+#include <sys/msg.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+
+获取和设置消息队列的属性函数 msgctl
+int msgctl(int msqid, int cmd, struct msqid_ds *buf);
+
+创建和打开消息队列函数 msgget
+int msgget(key_t key, int msgflg);
+
+从消息队列中读取一条新消息的函数 msgrcv
+int msgrcv(int msqid, void *msg_ptr, size_t msg_sz, long int msgtype, int msgflag);
+
+将消息送入消息队列的函数 msgsnd
+int msgsnd(int msqid, const void *msg_ptr, size_t msg_sz, int msgflg);
+
+生成键值函数 ftok
+key_t ftok(char* fname, int id);
+```
+系统建立IPC通信（如消息队列、共享内存）必须指定一个键值。
 
 
+```cpp
+// filename: test.cpp
+#include <stdio.h>
+#include <sys/sem.h>
+#include <stdlib.h>
+#include <iostream>
+using namespace std;
+int main()
+{
+	key_t semkey;
+	if((semkey = ftok("./test", 123) < 0))
+	{
+		cout <<"ftok failed."<<endl;
+		exit(EXIT_FAILURE);
+	}
+
+	cout <<"ftok ok, semkey ="<<semkey<<endl;
+
+	return 0;
+}
+
+// g++ test.cpp -o test
+```
 
 
+### 消息队列的发送和接收
+
+消息的接收
+```
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+struct my_msg_st
+{
+    long int my_msg_type;
+    char some_text[BUFSIZ];
+};
+int main()
+{
+    int running = 1;
+    int msgid;
+    struct my_msg_st some_data;
+    long int msg_to_receive = 0;
+
+		//设置消息队列：
+    msgid = msgget((key_t)1234,0666|IPC_CREAT);
+    if(msgid == -1)
+    {
+        fprintf(stderr,"msgget failed with error: %d\n", errno);
+        exit(EXIT_FAILURE);
+    }
+
+    //接收消息队列中的消息直到遇到一个end消息。最后，消息队列被删除：
+    while(running)
+    {
+		//阻塞方式等待接收消息
+        if(msgrcv(msgid, (void *)&some_data, BUFSIZ, msg_to_receive, 0) == -1)
+        {
+            fprintf(stderr, "msgrcv failed with errno: %d\n", errno);
+            exit(EXIT_FAILURE);
+        }
+
+        printf("You wrote: %s", some_data.some_text);
+		//如果收到的是end，就退出循环
+        if(strncmp(some_data.some_text, "end", 3)==0)
+        {
+            running = 0;
+        }
+    }
+ 
+	//IPC_EMID 将队列从系统内核中删除
+    if(msgctl(msgid, IPC_RMID, 0)==-1)
+    {
+        fprintf(stderr, "msgctl(IPC_RMID) failed\n");
+        exit(EXIT_FAILURE);
+    }
+    exit(EXIT_SUCCESS);
+}
+
+```
+
+消息的发送
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#define MAX_TEXT 512
+struct my_msg_st
+{
+    long int my_msg_type;
+    char some_text[MAX_TEXT];
+};
+
+ int main()
+{
+    int running = 1;
+    struct my_msg_st some_data;
+    int msgid;
+    char buffer[BUFSIZ];
+
+    msgid = msgget((key_t)1234, 0666|IPC_CREAT);//用一个整数作为键值
+    if(msgid==-1)
+    {
+        fprintf(stderr,"msgget failed with errno: %d\n", errno);
+        exit(EXIT_FAILURE);
+    }
+     while(running)
+    {
+        printf("Enter some text: ");
+        fgets(buffer, BUFSIZ, stdin);
+        some_data.my_msg_type = 1;
+        strcpy(some_data.some_text, buffer);
+        if(msgsnd(msgid, (void *)&some_data, MAX_TEXT, 0)==-1)
+        {
+            fprintf(stderr, "msgsnd failed\n");
+            exit(EXIT_FAILURE);
+        }
+        if(strncmp(buffer, "end", 3) == 0)
+        {
+            running = 0;
+        }
+    }
+     exit(EXIT_SUCCESS);
+}
+```
+编译上面2个文件，分别运行 接收程序、发送程序
 
 
+获取消息队列的属性
+```cpp
+#include <sys/types.h>
+#include <sys/msg.h>
+#include <unistd.h>
+#include <ctime>
+#include "stdio.h"
+#include "errno.h"
+void msg_stat(int,struct msqid_ds );
+main()
+{
+	int gflags,sflags,rflags;
+	key_t key;
+	int msgid;
+	int reval;
+	struct msgsbuf{
+			int mtype;
+			char mtext[1];
+		}msg_sbuf;
+	struct msgmbuf
+		{
+		int mtype;
+		char mtext[10];
+		}msg_rbuf;
+	struct msqid_ds msg_ginfo,msg_sinfo;
+	char  msgpath[]="./test";
 
+	key=ftok(msgpath,'b');
+	gflags=IPC_CREAT|IPC_EXCL;
+	msgid=msgget(key,gflags|00666);
+	if(msgid==-1)
+	{
+		printf("msg create error\n");
+	}
+	//创建一个消息队列后，输出消息队列缺省属性
+	msg_stat(msgid,msg_ginfo);
+	sflags=IPC_NOWAIT;
+	msg_sbuf.mtype=10;
+	msg_sbuf.mtext[0]='a';
+	reval=msgsnd(msgid,&msg_sbuf,sizeof(msg_sbuf.mtext),sflags);
+	if(reval==-1)
+	{
+		printf("message send error\n");
+	}
+	//发送一个消息后，输出消息队列属性
+	msg_stat(msgid,msg_ginfo);
 
+	 
+	reval=msgctl(msgid,IPC_RMID,NULL);//删除消息队列
+	if(reval==-1)
+	{
+		printf("unlink msg queue error\n");
+	}
+}
+void msg_stat(int msgid,struct msqid_ds msg_info)
+{
+	int reval;
+	sleep(1);//只是为了后面输出时间的方便
+	reval=msgctl(msgid,IPC_STAT,&msg_info);
+	if(reval==-1)
+	{
+		printf("get msg info error\n");
+	}
+	printf("\n");
+	printf("current number of bytes on queue is %d\n",msg_info.msg_cbytes);
+	printf("number of messages in queue is %d\n",msg_info.msg_qnum);
+	printf("max number of bytes on queue is %d\n",msg_info.msg_qbytes);
+	//每个消息队列的容量（字节数）都有限制MSGMNB，值的大小因系统而异。在创建新的消息队列时，//msg_qbytes的缺省值就是MSGMNB
+	printf("pid of last msgsnd is %d\n",msg_info.msg_lspid);
+	printf("pid of last msgrcv is %d\n",msg_info.msg_lrpid);
+	printf("last msgsnd time is %s", ctime(&(msg_info.msg_stime)));
+	printf("last msgrcv time is %s", ctime(&(msg_info.msg_rtime)));
+	printf("last change time is %s", ctime(&(msg_info.msg_ctime)));
+	printf("msg uid is %d\n",msg_info.msg_perm.uid);
+	printf("msg gid is %d\n",msg_info.msg_perm.gid);
+}
 
-
-
-
-
-
+```
 
 
 

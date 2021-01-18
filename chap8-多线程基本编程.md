@@ -37,17 +37,45 @@ void *ThreadProc(void *arg);
 ```
 
 ### 线程标识
+通常线程创建成功之后会返回一个线程ID。
+
+### 利用 POSIX 多线程 API 函数进行多线程开发
+```txt
+pthread_create            创建线程
+pthread_join              等待一个线程的结束
+pthread_self              获取线程ID
+pthread_cancel            取消另一个线程
+pthread_exit              在线程函数中调用来退出线程函数
+pthread_kill              向线程发送一个信号
+```
+这些 API 函数需要包含头文件 pthread.h 并且在编译的时候要加上库 pthread，表示包含多线程库文件。
 
 
+```cpp
+int pthread_create(pthread_t *pid, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+```
+ - > pid 是一个指针，指向创建成功后的线程的ID，pthread_t其实就是 unsigned long int;
+ - > attr 是指向线程属性结构 pthread_attr_t 的指针，如果为 NULL ，则使用默认属性;
+ - > start_routine 指向线程函数的地址，线程函数就是线程创建后要执行的函数;
+ - > arg 指向传给线程函数的参数，如果执行成功，函数返回0
 
 
+POSIX提供了函数 pthread_join 来等待子线程结束，
+即子线程的线程函数执行完毕后，prthread_join 才返回，
+因此 pthread_join 是一个阻塞函数。
+函数 pthread_join 会让主线程挂起（休眠，就是让出CPU），直到子线程都退出，
+同时 pthread_join 能让子线程所占资源得到释放。
+子线程退出后，主线程会接收到系统的信号，从休眠中恢复。
 
-
-
-
-
-
-
+```cpp
+int pthread_join(pthread_t pid, void **value_ptr);
+```
+ - > pid 是所等待线程的ID号
+ - > value_ptr 通常可以设置为NULL。
+如果不为NULL，则 pthread_join 复制一份线程退出值到一个内存区域，
+并让 *value_ptr 指向该内存区域，因此 pthread_join 还有一个重要的功能
+就是能获得子线程的返回值。如果函数执行成功返回0，否则返回错误码。
+ 
 
 
 

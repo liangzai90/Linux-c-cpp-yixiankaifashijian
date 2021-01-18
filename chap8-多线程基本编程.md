@@ -84,14 +84,183 @@ int pthread_join(pthread_t pid, void **value_ptr);
  
 
 
+### 创建一个简单的线程，不传参数
+```cpp
+// 要加上 pthread 库，2中表达方式
+// g++ demo.cpp -pthread 
+// g++ demo.cpp -lpthread 
+//
+#include <pthread.h>
+#include <stdio.h>
+#include <unistd.h>  //sleep
+
+void *thfunc(void *arg) //线程函数
+{
+    printf("in thfunc \r\n");
+    return (void *)0;
+}
+
+int main(int argc, char *argv[])
+{
+    pthread_t tidp;
+    int ret;
+
+    ret = pthread_create(&tidp, NULL, thfunc, NULL); //创建线程
+    if(ret)
+    {
+        printf("pthread_create failed:%d \r\n", ret);
+        return -1;
+    }
+
+    sleep(1); //main线程挂起1秒钟，为了让子线程有机会执行
+    printf("in main:thread is created\r\n");
+    return 0;
+}
+```
 
 
+### 创建一个线程，并传入整形参数 
+```cpp
+#include <pthread.h>
+#include <stdio.h>
+
+void *thfunc(void *arg)
+{
+    int *pn = (int *)(arg); //获取参数的地址
+    int n = *pn;
+    printf("in thfunc:n = %d \r\n", n);
+    return (void *)0;
+}
+
+int main(int argc,char *argv[])
+{
+    pthread_t tidp;
+    int ret, n = 110;
+
+    ret = pthread_create(&tidp, NULL, thfunc, &n); // 创建线程并传递n的地址
+    if(ret)
+    {
+        printf("pthread_create failed:%d \r\n", ret);
+        return -1;
+    }
+
+    printf("tidp is :%d",tidp);
+
+    // tipd 是线程的id 
+    pthread_join(tidp, NULL); // 等待线程结束
+    printf("in main:thread is created.\r\n");
+
+    return 0;
+}
+```
 
 
+### 创建一个线程，并传递字符串作为参数
+```cpp
+#include <pthread.h>
+#include <stdio.h>
+
+void *thfunc(void *arg)
+{
+    char *str;
+    str = (char *)arg; //得到传递进来的字符串
+    printf("in thfunc: str = %s \r\n", str);  // 打印字符串
+    return (void *)0;
+}
+
+int main(int argc, char *argv[])
+{
+    pthread_t tidp;
+    int ret;
+    const char *str = "hello world";
+
+    ret = pthread_create(&tidp, NULL, thfunc, (void *)str); // 创建线程并传递 str  
+    if(ret)
+    {
+        printf("pthread_create failed:%d \r\n", ret);
+        return -1;
+    }
+    pthread_join(tidp, NULL); // 等待子线程结束
+    printf("in main:thread is created.\r\n");
+
+    return 0;
+}
+```
 
 
+### 创建一个线程，并传递结构体作为参数
+```cpp
+#include <pthread.h>
+#include <stdio.h>
+
+typedef struct   // 定义结构体的类型
+{
+    int n;
+    char* str;
+}MYSTRUCT;
+
+void *thfunc(void *arg)
+{
+    MYSTRUCT *p = (MYSTRUCT*)arg;
+    printf("in thfunc:n=%d, str=%s \r\n", p->n, p->str); //打印结构体内容
+    return (void *)0;
+}
+
+int main(int argc, char *argv[])
+{
+    pthread_t tidp;
+    int ret;
+    MYSTRUCT  mystruct;  // 定义结构体 
+    // 初始化结构体
+    mystruct.n = 110;
+    mystruct.str = "Hello world.";
+    
+    ret = pthread_create(&tidp, NULL, thfunc, (void *)&mystruct); // 创建线程并传递 结构体地址  
+    if(ret)
+    {
+        printf("pthread_create failed:%d \r\n", ret);
+        return -1;
+    }
+    pthread_join(tidp, NULL); // 等待子线程结束
+    printf("in main:thread is created.\r\n");
+
+    return 0;
+}
+```
 
 
+### 创建一个线程，共享进程数据
+```cpp
+#include <pthread.h>
+#include <stdio.h>
+
+int gn = 10;   // 定义一个全局变量，将会在主线程和子线程中用到
+
+void *thfunc(void *arg)
+{
+    gn++;  //递增1
+    printf("in thfunc:gn=%d, \r\n", gn);  //打印全局变量 gn 值
+    return (void *)0;
+}
+
+int main(int argc, char *argv[])
+{
+    pthread_t tidp;
+    int ret;
+    ret = pthread_create(&tidp, NULL, thfunc, NULL);
+    if(ret)
+    {
+        printf("pthread_create failed:%d \r\n", ret);
+        return -1;
+    }
+
+    pthread_join(tidp, NULL);  //等待子线程结束
+    gn++; // 子线程结束后， gn 再递增1
+    printf("in main: gn= %d \r\n", gn);  // 再次打印全局变量 gn 值 
+
+    return 0;
+}
+```
 
 
 

@@ -263,26 +263,199 @@ int main(int argc, char *argv[])
 ```
 
 
+### 线程的属性
+
+```cpp
+int pthread_getattr_np(pthread_t thread, pthread_attr_t *attr)
+```
+ - > thread 是线程ID
+ - > attr 返回线程属性结构体的内容
+
+如果函数执行成功就返回0，否则返回错误码。
+使用该函数需要定义宏 _GNU_SOURCE，而且要在 pthread.h 前定义，
+具体如下：
+```cpp
+#define  _GUN_SOURCE
+#include <pthread.h>
+```
+当函数 pthread_getarrt_np 获得的属性结构体变量不再需要的时候，
+应该用函数 pthread_attr_destroy 进行销毁。 
 
 
+如果要创建非默认属性的线程，可以在创建线程之前用
+函数 pthread_attr_init 来初始化一个线程属性结构体，
+再调用 相应 API 函数来设置相应的属性，接着把属性结构体的地址参数
+作为数传入 pthread_create。
+```cpp
+int pthread_attr_init(pthread_attr_t *attr);
+```
+ - > attr 为指向线程属性结构体的指针。如果函数执行成功就返回0，否则返回一个错误码。
+
+需要注意：使用 pthread_attr_init 初始化线程属性，之后(传入 pthread_create)需要
+使用 pthread_attr_destroy 销毁，从而释放相关资源。
+
+```cpp
+int pthread_attr_destroy(pthread_attr_t *attr);
+```
+ - > attr 为指向线程属性结构体的指针。如果函数执行成功就返回0，否则返回一个错误码。
+
+POSIX 下的线程要么是分离的，要么是非分离状态的（也称可连接, joinable)。
+默认情况下创建的线程是可连接的，一个可结合的线程是可以被其他线程收回资源
+和杀死（或称取消）的，并且它不会主动释放资源（比如栈空间），
+必须等待其他线程来回收其资源。
+
+因此我们要在主线程使用 pthread_join 函数，该函数是一个阻塞函数，
+当它返回时，所等待的线程的资源也就被释放了。
+
+再次强调，如果是可连接的线程，当线程函数自己返回结束时或调用 pthread_exit 结束时，
+都不会释放线程所占用的堆栈和线程描述符，必须调用 pthread_join 且返回后，
+这些资源才会被释放。
 
 
+一个可连接的线程所占用的内存仅当有线程对其执行 pthread_join 后才会释放，
+为了避免内存泄漏，可连接的线程在终止时，要么被设置为 DETACHED(可分离)，
+要么使用 pthread_join 来回收资源。
 
 
+可分离的线程，这种线程运行结束时，其资源将立即被系统回收。
+将一个线程设置为可分离状态有两种方式。
+一种是调用函数 pthread_detach，将线程转换为可分离线程。
+另一种是在创建线程时就将它设置为可分离状态，
+基本过程是首先 初始化一个线程属性的结构体变量（通过函数 pthread_attr_init），
+然后将其设置为可分离状态（通过函数 pthread_attr_setdetachstate），
+最后将该结构体变量的地址作为参数传入线程创建函数 pthread_create，
+这样所创建出来的线程就直接处于可分离状态：
+
+```cpp
+int pthread_attr_setdetachstate(pthread_attr_t *attr, int detachstate);
+```
+ - > attr 是要设置的属性结构体；
+ - > detachstate 是要设置的分离状态值，可以取值 PTHREAD_CREATE_DETACHED 或
+ PTHREAD_CREATE_JOINABLE。如果函数执行成功就返回0，否则返回非零错误码。
 
 
+### 创建一个可分离线程
+
+```cpp
+#include <iostream>
+#include <unistd.h>  //sleep
+#include <pthread.h>
+
+using namespace std;
+
+void *thfunc(void *arg)
+{
+    cout <<("sub thread is running \r\n");
+    return nullptr;
+}
+
+int main(int argc, char *argv[])
+{
+    pthread_t thread_id;
+    pthread_attr_t thread_attr;
+    struct sched_param thread_param;
+    size_t stack_size;
+    int res;
+
+    res = pthread_attr_init(&thread_attr);
+    if(res)
+    {
+        cout<<"pthread_attr_init failed:"<<res<<endl;
+    }
+
+    res = pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);//设置为分离状态
+    if(res)
+    {
+        cout <<"pthread_attr_setdetachstate failed:"<<res<<endl;
+    }
+
+    res = pthread_create(&thread_id, &thread_attr, thfunc, nullptr);
+
+    if(res)
+    {
+        cout <<"pthread_create failed:"<<res<<endl;
+    }
+
+    sleep(1);
+    return 0;
+}
+```
+
+### 创建一个可分离线程，且 main 线程先退出
+```cpp
+#include <iostream>
+#include <unistd.h>  //sleep
+#include <pthread.h>
+
+using namespace std;
+
+void *thfunc(void *arg)
+{
+    cout <<("sub thread is running \r\n");
+    return nullptr;
+}
+
+int main(int argc, char *argv[])
+{
+    pthread_t thread_id;
+    pthread_attr_t thread_attr;
+    struct sched_param thread_param;
+    size_t stack_size;
+    int res;
+
+    res = pthread_attr_init(&thread_attr); //初始化线程结构体
+    if(res)
+    {
+        cout<<"pthread_attr_init failed:"<<res<<endl;
+    }
+
+    res = pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);//设置为分离状态
+    if(res)
+    {
+        cout <<"pthread_attr_setdetachstate failed:"<<res<<endl;
+    }
+
+    res = pthread_create(&thread_id, &thread_attr, thfunc, nullptr);
+
+    if(res)
+    {
+        cout <<"pthread_create failed:"<<res<<endl;
+    }
+
+    cout <<"main thread will exit \r\n"<<endl;
+
+    pthread_exit(nullptr);//主线程退出，但进程不会此刻退出，下面的语句不会再执行
+    cout <<"main thread has exited, this line will not run \r\n"<<endl;
+
+    return 0;
+}
+
+```
 
 
+函数 pthread_detach 把一个可连接线程转变为一个可分离线程
+```cpp
+int pthread_detach(pthread_t thread);
+```
+ - > thread 是要设置为分离状态的线程的ID。
+
+如果函数执行成功返回0，否则返回错误码。
 
 
+获取分离状态函数 pthread_attr_getdetachstate 
+```cpp
+int pthread_attr_getdetachstate(pthread_attr_t *attr, int *detachstate);
+```
+ - > attr 为属性结构体指针
+ - > detachstate 返回分离状态
+
+ 如果函数执行成功返回0，否则返回错误码。
 
 
+### 获取线程的分离状态熟悉
+```cpp
 
-
-
-
-
-
+```
 
 
 

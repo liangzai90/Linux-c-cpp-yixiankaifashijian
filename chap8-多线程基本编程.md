@@ -452,10 +452,186 @@ int pthread_attr_getdetachstate(pthread_attr_t *attr, int *detachstate);
  如果函数执行成功返回0，否则返回错误码。
 
 
-### 获取线程的分离状态熟悉
+### 获取线程的分离状态属性
 ```cpp
+#ifndef _GNU_SOURCE  
+#define _GNU_SOURCE     /* To get pthread_getattr_np() declaration */  
+#endif  
+#include <pthread.h>  
+#include <stdio.h>  
+#include <stdlib.h>  
+#include <unistd.h>  
+#include <errno.h>  
+      
+#define handle_error_en(en, msg) \  
+        do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)  
+      
+
+      
+static void * thread_start(void *arg)  
+{  
+	int i,s;  
+	pthread_attr_t gattr;  
+       
+	s = pthread_getattr_np(pthread_self(), &gattr);  
+	if (s != 0)  
+		handle_error_en(s, "pthread_getattr_np");  
+      
+	printf("Thread's detachstate attributes:\n");  
+ 
+	s = pthread_attr_getdetachstate(&gattr, &i);  
+	if (s)  
+		handle_error_en(s, "pthread_attr_getdetachstate");  
+	printf("Detach state        = %s\n",
+		(i == PTHREAD_CREATE_DETACHED) ? "PTHREAD_CREATE_DETACHED" :  
+		(i == PTHREAD_CREATE_JOINABLE) ? "PTHREAD_CREATE_JOINABLE" :  
+		"???");  
+
+	 pthread_attr_destroy(&gattr);  
+}  
+      
+int main(int argc, char *argv[])  
+{  
+	pthread_t thr;  
+	int s;  
+ 
+	s = pthread_create(&thr, NULL, &thread_start, NULL);  
+	if (s != 0)  
+	{
+		handle_error_en(s, "pthread_create"); 
+		return 0;
+	}
+	
+	pthread_join(thr, NULL); //等待子线程结束
+}  
+```
+
+### 把可连接线程转换为可分离线程
+```cpp
+#ifndef _GNU_SOURCE  
+#define _GNU_SOURCE     /* To get pthread_getattr_np() declaration */  
+#endif  
+#include <pthread.h>  
+#include <stdio.h>  
+#include <stdlib.h>  
+#include <unistd.h>  
+#include <errno.h>  
+     
+static void * thread_start(void *arg)  
+{  
+	int i,s;  
+	pthread_attr_t gattr;  
+ 
+	s = pthread_getattr_np(pthread_self(), &gattr);  
+	if (s != 0)  
+		printf("pthread_getattr_np failed\n");  
+    
+	s = pthread_attr_getdetachstate(&gattr, &i);  
+	if (s)  
+		printf(  "pthread_attr_getdetachstate failed");  
+	printf("Detach state        = %s\n",
+		(i == PTHREAD_CREATE_DETACHED) ? "PTHREAD_CREATE_DETACHED" :  
+		(i == PTHREAD_CREATE_JOINABLE) ? "PTHREAD_CREATE_JOINABLE" :  
+		"???");  
+
+	pthread_detach(pthread_self()); //转换线程为可分离线程
+	
+	s = pthread_getattr_np(pthread_self(), &gattr);  
+	if (s != 0)  
+		printf("pthread_getattr_np failed\n");  
+	s = pthread_attr_getdetachstate(&gattr, &i);  
+	if (s)  
+		printf(" pthread_attr_getdetachstate failed");  
+	printf("after pthread_detach,\nDetach state        = %s\n",
+		(i == PTHREAD_CREATE_DETACHED) ? "PTHREAD_CREATE_DETACHED" :  
+		(i == PTHREAD_CREATE_JOINABLE) ? "PTHREAD_CREATE_JOINABLE" :  
+		"???");  
+	
+	 pthread_attr_destroy(&gattr);  //销毁属性
+}  
+      
+int main(int argc, char *argv[])  
+{  
+	pthread_t thread_id;  
+	int s;  
+ 
+	s = pthread_create(&thread_id, NULL, &thread_start, NULL);  
+	if (s != 0)  
+	{
+		printf("pthread_create failed\n"); 
+		return 0;
+	}
+	pthread_exit(NULL);//主线程退出，但进程并不马上结束
+}  
 
 ```
+
+
+### 栈尺寸
+在线程函数开设局部变量（尤其是数组）不要超过默认栈尺寸大小。
+获取线程栈尺寸属性的函数是 pthread_attr_getstacksize
+```cpp
+int pthread_attr_getstacksize(pthread_attr_t *attr, size_t *stacksize);
+```
+ - > attr 指向属性结构体
+ - > stacksize 用于获得栈尺寸（单位是字节），指向 size_t 类型的变量。
+
+ 如果函数执行成功返回0，否则返回错误码。
+
+```cpp
+#ifndef _GNU_SOURCE  
+#define _GNU_SOURCE     /* To get pthread_getattr_np() declaration */  
+#endif  
+#include <pthread.h>  
+#include <stdio.h>  
+#include <stdlib.h>  
+#include <unistd.h>  
+#include <errno.h>  
+#include <limits.h>
+static void * thread_start(void *arg)  
+{  
+	int i,res;  
+	size_t stack_size;
+	pthread_attr_t gattr;  
+ 
+	res = pthread_getattr_np(pthread_self(), &gattr);  
+	if (res)  
+		printf("pthread_getattr_np failed\n");  
+    
+	res = pthread_attr_getstacksize(&gattr, &stack_size);
+	if (res)
+		printf("pthread_getattr_np failed\n"); 
+	
+	printf("Default stack size is %u byte; minimum is %u byte\n", stack_size, PTHREAD_STACK_MIN);
+	 
+	
+	 pthread_attr_destroy(&gattr);  
+}  
+      
+int main(int argc, char *argv[])  
+{  
+	pthread_t thread_id;  
+	int s;  
+ 
+	s = pthread_create(&thread_id, NULL, &thread_start, NULL);  
+	if (s != 0)  
+	{
+		printf("pthread_create failed\n"); 
+		return 0;
+	}
+	pthread_join(thread_id, NULL); //等待子线程结束
+}  
+```
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -623,6 +623,210 @@ int main(int argc, char *argv[])
 }  
 ```
 
+### 调度策略
+进程中有了多个线程后，就要管理这些线程如何去占用CPU，这就是线程调度。
+
+具体的调度策略可以分为3种：
+ - > SCHED_OTHER 分时调度策略（也称轮转策略），是一种非实时调度策略，
+ 系统会为每个线程分配一段运行时间，称为时间片。
+ 该调度策略是不支持优先级的。
+ - > SCHED_FIFO 先来先服务调度策略，支持优先级抢占。可设置的优先级范围是1~99。
+ - > SCHED_RR 实时调度策略，表示时间片轮转（循环）调度策略，
+ 但支持优先级抢占，因此也是一种实时调度策略。
+
+线程创建的时候，默认是的调度策略是 SCHED_OTHER。
+
+### 获取线程3种调度策略下可设置的最小和最大优先级
+```cpp
+#include <stdio.h>
+#include <unistd.h>
+#include <sched.h>
+ 
+int main()
+{
+	printf("Valid priority range for SCHED_OTHER: %d - %d\n",
+		sched_get_priority_min(SCHED_OTHER),
+		sched_get_priority_max(SCHED_OTHER));
+	printf("Valid priority range for SCHED_FIFO: %d - %d\n",
+		sched_get_priority_min(SCHED_FIFO),
+		sched_get_priority_max(SCHED_FIFO));
+	printf("Valid priority range for SCHED_RR: %d - %d\n",
+		sched_get_priority_min(SCHED_RR),
+		sched_get_priority_max(SCHED_RR));
+	
+	return 0;		
+}
+```
+
+
+### 线程终止并得到线程的退出码
+```cpp
+#include <pthread.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
+
+#define PTHREAD_NUM    2
+
+void *thrfunc1(void *arg)
+{
+	static int count = 666;
+	pthread_exit((void*)(&count)); //线程返回值的方法1，调用 pthread_exit
+}
+void *thrfunc2(void *arg)
+{
+	static int count = 777;
+	return (void *)(&count);  //线程返回值的方法2，return
+}
+
+int main(int argc, char *argv[])
+{
+	pthread_t pid[PTHREAD_NUM];
+	int retPid;
+	int *pRet1; //注意这里是指针
+	int * pRet2;
+
+
+	if ((retPid = pthread_create(&pid[0], NULL, thrfunc1, NULL)) != 0)
+	{
+		perror("create pid first failed");
+		return -1;
+	}
+	if ((retPid = pthread_create(&pid[1], NULL, thrfunc2, NULL)) != 0)
+	{
+		perror("create pid second failed");
+		return -1;
+	}
+
+	if (pid[0] != 0)
+	{
+		pthread_join(pid[0], (void**)&pRet1);
+		printf("get thread 0 exitcode: %d\n", *pRet1);
+	}
+	if (pid[1] != 0)
+	{
+		pthread_join(pid[1], (void**)&pRet2);
+		printf("get thread 1 exitcode: %d\n", *pRet2);
+	}
+	return 0;
+}
+
+// get thread 0 exitcode: 666
+// get thread 1 exitcode: 777
+```
+
+
+向线程发送信号的函数是 pthread_kill。
+需要注意的是，接收信号的线程必须先用 sigaction
+函数注册该信号的处理函数。
+```cpp
+int pthread_kill(pthread_t threadId, int signal);
+```
+
+
+### 向线程发送请求结束信号
+```cpp
+#include <iostream>  
+#include <pthread.h>  
+#include <signal.h>  
+#include <unistd.h> //sleep
+using namespace std;
+
+static void on_signal_term(int sig) 
+{
+	cout << "sub thread will exit" << endl;
+	pthread_exit(NULL); 
+}
+void *thfunc(void *arg)
+{
+	  signal(SIGQUIT, on_signal_term);
+ 
+	int tm = 50;
+	while (true)
+	{
+		cout << "thrfunc--left:"<<tm<<" s--" <<endl;
+		sleep(1);
+		tm--;
+	}
+	
+	return (void *)0;   
+}
+
+int main(int argc, char *argv[])
+{
+	pthread_t     pid;  
+	int res;
+	
+	res = pthread_create(&pid, NULL, thfunc, NULL);
+	
+	sleep(5);
+	
+	pthread_kill(pid, SIGQUIT);  
+	pthread_join(pid, NULL); 
+	cout << "sub thread has completed,main thread will exit\n";
+	 
+	return 0;
+}
+```
+
+### 判断线程是否已经结束
+```cpp
+#include <iostream>  
+#include <pthread.h>  
+#include <signal.h>  
+#include <unistd.h> //sleep
+#include "errno.h"
+using namespace std;
+
+void *thfunc(void *arg)
+{
+	int tm = 50;
+	while (1)
+	{
+		cout << "thrfunc--left:"<<tm<<" s--" <<endl;
+		sleep(1);
+		tm--;
+	}
+	return (void *)0;   
+}
+
+int main(int argc, char *argv[])
+{
+	pthread_t     pid;  
+	int res;
+	
+	res = pthread_create(&pid, NULL, thfunc, NULL);
+	sleep(5);
+	int kill_rc = pthread_kill(pid, 0);
+
+	if (kill_rc == ESRCH)
+		cout<<"the specified thread did not exists or already quit\n";
+	else if (kill_rc == EINVAL)
+		cout<<"signal is invalid\n";
+	else
+		cout<<"the specified thread is alive\n";
+	 
+	return 0;
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

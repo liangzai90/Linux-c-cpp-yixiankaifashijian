@@ -1064,9 +1064,58 @@ int main()
 
 
 
+## C++11中的线程类
+C++11新标准中引入了5个头文件来支持多线程编程，
+分别是 atomic、thread、mutex、condition_variable 和 future。
 
+```txt
+        类 std::thread 的常用成员函数
+thread          构造函数，有4种		   
+get_id          获得线程ID
+joinable        判断线程对象是否可连接
+join            阻塞函数，等待线程结束
+native_handle   用于获得与操作系统相关的原生线程句柄（需要本地库支持）
+swap            线程交换
+detach          分离线程
+```
 
+### 批量创建线程
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
 
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for
+
+using namespace std;
+
+void thfunc(int n)  //线程函数
+{
+	std::cout <<"thfunc:"<< n<<endl;
+}
+
+int main(int argc, const char *argv[])
+{
+	std::thread threads[5];  //批量定义5个thread对象，但此时并不会执行线程
+	std::cout<<"create 5 threads ..."<<endl;
+
+	for(int i=0;i<5;++i)
+	{
+		threads[i] = std::thread(thfunc, i+1); //这里开始执行线程函数 thfunc 
+	}
+	
+	//创建的都是可连接线程，所以要用join来等待它们结束。
+	for(auto & t : threads)  // 等待每个线程结束
+	{
+		t.join();
+	}
+
+	std::cout <<"All threads joined."<<endl;
+
+	return EXIT_SUCCESS;
+}
+```
 
 
 

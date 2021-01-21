@@ -812,6 +812,257 @@ int main(int argc, char *argv[])
 ```
 
 
+### 取消线程失败
+```cpp
+#include<stdio.h>  
+#include<stdlib.h>  
+#include <pthread.h>  
+#include <unistd.h> //sleep
+void *thfunc(void *arg)  
+{  
+	int i = 1;  
+	printf("thread start-------- \n");  
+	while (1)  
+		i++;  
+	
+	return (void *)0;  
+}  
+int main()  
+{  
+	void *ret = NULL;  
+	int iret = 0;  
+	pthread_t tid;  
+	pthread_create(&tid, NULL, thfunc, NULL);  
+	sleep(1);  
+          
+	pthread_cancel(tid);//取消线程  
+	pthread_join(tid, &ret);  
+	if (ret == PTHREAD_CANCELED)
+		printf("thread has stopped,and exit code: %d\n", ret);  
+	else
+		printf("some error occured");
+          
+	return 0;         
+}  
+```
+
+### 取消线程成功
+```cpp
+#include<stdio.h>  
+#include<stdlib.h>  
+#include <pthread.h>  
+#include <unistd.h> //sleep
+void *thfunc(void *arg)  
+{  
+	int i = 1;  
+	printf("thread start-------- \n");  
+	while (1)  
+	{
+		i++;  
+		printf(" i val is:%d \r\n",i);
+		//sleep(2);  用sleep也可以，但是会影响while里面的执行速度
+		pthread_testcancel(); //监听是否有 cancel 消息到来
+	}
+	
+	return (void *)0;  
+}  
+int main()  
+{  
+	void *ret = NULL;  
+	int iret = 0;  
+	pthread_t tid;  
+	pthread_create(&tid, NULL, thfunc, NULL);  
+	sleep(1);  
+          
+	pthread_cancel(tid);//取消线程  
+	pthread_join(tid, &ret);  
+	if (ret == PTHREAD_CANCELED)
+		printf("thread has stopped,and exit code: %d\n", ret);  
+	else
+		printf("some error occured");          
+	return 0;         
+}  
+```
+
+
+
+### 线程退出时的清理机会
+
+```cpp
+void pthread_cleanup_push(void (*routine)(void *), void *arg);
+```
+ - > routine 是一个函数指针，arg是该函数的参数。
+ 由 pthread_cleanup_push 压栈的清理函数在下面3种情况下会执行：
+
+ 1.线程主动结束时，比如 return 或调用 pthread_exit 的时候
+
+ 2.调用函数 pthread_cleanup_pop，且其参数为非0时。
+
+ 3.线程被其他线程取消时，也就是有其他的线程对该线程调用 pthread_cancel 函数。
+
+
+```cpp
+void pthread_cleanup_pop(int execute);
+```
+ - > execute 用来决定在弹出栈顶清理函数的同时是否执行清理函数，
+ 取0时表示不执行清理函数，
+ 非0时则执行清理函数。
+
+
+### 线程主动结束时，调用清理函数
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <string.h> //strerror
+ 
+void mycleanfunc(void *arg)
+{
+	printf("mycleanfunc:%d\n", *((int *)arg));						 
+}
+void *thfrunc1(void *arg)
+{
+	int m=1;
+	printf("thfrunc1 comes \n");
+	pthread_cleanup_push(mycleanfunc, &m); 
+	return (void *)0;	 
+	pthread_cleanup_pop(0);	
+}
+ 
+void *thfrunc2(void *arg)
+{
+	int m = 2;
+	printf("thfrunc2 comes \n");
+	pthread_cleanup_push(mycleanfunc, &m); 
+	pthread_exit(0);
+	pthread_cleanup_pop(0);	
+}
+
+
+int main(void)
+{
+	pthread_t pid1,pid2;
+	int res;
+	res = pthread_create(&pid1, NULL, thfrunc1, NULL);
+	if (res) 
+	{
+		printf("pthread_create failed: %d\n", strerror(res));
+		exit(1);
+	}
+	pthread_join(pid1, NULL);
+	
+	res = pthread_create(&pid2, NULL, thfrunc2, NULL);
+	if (res) 
+	{
+		printf("pthread_create failed: %d\n", strerror(res));
+		exit(1);
+	}
+	pthread_join(pid2, NULL);
+	
+	printf("main over\n");
+	return 0;
+}
+
+
+/**********************
+thfrunc1 comes 
+mycleanfunc:1
+thfrunc2 comes 
+mycleanfunc:2
+main over
+*******************/
+```
+
+
+### pthread_cleanup_pop 调用清理函数
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <string.h> //strerror
+ 
+void mycleanfunc(void *arg)
+{
+	printf("mycleanfunc:%d\n", *((int *)arg));						 
+}
+void *thfrunc1(void *arg)
+{
+	int m=1,n=2;
+	printf("thfrunc1 comes \n");
+	pthread_cleanup_push(mycleanfunc, &m); 
+	pthread_cleanup_push(mycleanfunc, &n); 
+	pthread_cleanup_pop(1);
+	pthread_exit(0);
+	pthread_cleanup_pop(0);
+}
+  
+int main(void)
+{
+	pthread_t pid1 ;
+	int res;
+	res = pthread_create(&pid1, NULL, thfrunc1, NULL);
+	if (res) 
+	{
+		printf("pthread_create failed: %d\n", strerror(res));
+		exit(1);
+	}
+	pthread_join(pid1, NULL);
+	
+	printf("main over\n");
+	return 0;
+}
+
+```
+
+
+### 取消线程时引发清理函数
+```cpp
+#include<stdio.h>  
+#include<stdlib.h>  
+#include <pthread.h>  
+#include <unistd.h> //sleep
+
+void mycleanfunc(void *arg) //清理函数
+{
+	printf("mycleanfunc:%d\n", *((int *)arg));						 
+}
+ 
+void *thfunc(void *arg)  
+{  
+	int i = 1;  
+	printf("thread start-------- \n"); 
+	pthread_cleanup_push(mycleanfunc, &i); //把清理函数压栈
+	while (1)  
+	{
+		i++;  
+		printf("i=%d\n", i);
+	}	
+	printf("this line will not run\n");
+	pthread_cleanup_pop(0);
+	
+	return (void *)0;  
+}  
+int main()  
+{  
+	void *ret = NULL;  
+	int iret = 0;  
+	pthread_t tid;  
+	pthread_create(&tid, NULL, thfunc, NULL);  //创建线程
+	sleep(1);  
+          
+	pthread_cancel(tid); //发送取消线程的请求  
+	pthread_join(tid, &ret);  //等待线程结束
+	if (ret == PTHREAD_CANCELED) //判断是否成功取消线程
+		printf("thread has stopped,and exit code: %d\n", ret);  //打印下返回值，应该是-1
+	else
+		printf("some error occured");
+          
+	return 0;  
+}
+
+```
+
+
 
 
 

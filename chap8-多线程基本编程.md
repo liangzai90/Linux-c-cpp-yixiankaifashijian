@@ -1127,7 +1127,33 @@ int main(int argc, const char *argv[])
 
 
 
+### 创建一个线程，不传入参数
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
 
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for
+
+#include <unistd.h>  // sleep 
+using namespace std;
+
+void thfunc() //子线程的线程函数
+{
+	cout <<"I am C++11 thread func"<<endl;
+}
+
+int main(int argc, char* argv[])
+{
+	//定义线程对象，并把线程函数指针传入
+	thread t(thfunc);
+
+	sleep(1);
+
+	return 0;
+}
+```
 
 
 

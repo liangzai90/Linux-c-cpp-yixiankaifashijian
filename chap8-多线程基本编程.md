@@ -1089,6 +1089,8 @@ detach          分离线程
 
 ### 批量创建线程
 ```cpp
+// g++ demo1.cpp -std=c++11 -pthread
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -1129,6 +1131,8 @@ int main(int argc, const char *argv[])
 
 ### 创建一个线程，不传入参数
 ```cpp
+// g++ demo1.cpp -std=c++11 -pthread
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -1156,20 +1160,480 @@ int main(int argc, char* argv[])
 ```
 
 
+### 创建一个线程，并传入整形参数
+```cpp
+// g++ demo1.cpp -std=c++11 -pthread
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for
+
+#include <unistd.h>  // sleep 
+using namespace std;
+
+void thfunc(int n) //线程函数
+{
+	cout <<"thfunc :"<<n<<endl;0
+}
+
+int main(int argc, char* argv[])
+{
+	//定义线程对象，并把线程函数指针 和线程函数参数传入 
+	thread t(thfunc, 666);
+
+	t.join();
+
+	return 0;
+}
+```
+
+### 创建一个线程，并传递字符串作为参数
+```cpp 
+// g++ demo1.cpp -std=c++11 -pthread
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for
+
+#include <unistd.h>  // sleep 
+using namespace std;
+
+void thfunc(char* str) //线程函数
+{
+	cout <<"thfunc :"<<str<<endl;
+}
+
+int main(int argc, char* argv[])
+{
+	char str[] = "boy and girl";
+	//定义线程对象，并传入字符串str
+	thread t(thfunc, str);
+
+	t.join();
+
+	return 0;
+}
+```
+
+### 创建一个线程，并传递结构体作为参数
+```cpp
+ // g++ demo1.cpp -std=c++11 -pthread
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for
+
+#include <unistd.h>  // sleep 
+using namespace std;
+
+// 定义结构体的类型
+typedef struct{
+	int n;
+	const char* str;// 注意这里要有const，否则会警告
+}MYSTRUCT;
+
+// 线程函数 
+void thfunc(void *arg) 
+{
+	MYSTRUCT *p = (MYSTRUCT*)arg;
+	cout <<"in thfunc: n="<< p->n << ",str=" << p->str<<endl;  //打印结构体的内容
+}
+
+int main(int argc, char* argv[])
+{
+	MYSTRUCT myStruct; //定义结构体
+	//初始化结构体
+	myStruct.n = 110;
+	myStruct.str = "Hello world";
+
+	//定义线程对象，并传入结构体变量的地址
+	thread t(thfunc, &myStruct);
+
+	t.join();// 等待线程对象的结束
+
+	return 0;
+}
+```
+
+### 创建一个线程，传多个参数给线程函数
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for
+
+#include <unistd.h>  // sleep 
+using namespace std;
+
+
+// 线程函数 
+void thfunc(int n, int m,int *pk, char str[]) 
+{
+	cout <<"in thfunc:n="<<n<<",m="<<m<<",k="<<*pk<<",str:"<<str<<endl;
+	*pk = 5000; //修改pk
+}
+
+int main(int argc, char* argv[])
+{
+	int n = 110, m=120, k=5;
+	char str[] = "hello world";
+
+	//定义线程对象，并传入 【多个参数】
+	thread t(thfunc, n,m,&k,str);
+
+	t.join();// 等待线程对象的结束
+
+	cout <<"k="<<k<<endl;
+
+	return 0;
+}
+```
+
+
+### 把可连接线程转为分离线程（C++11 和 POSIX 联合作战）
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for
+
+#include <unistd.h>  // sleep 
+using namespace std;
+
+
+// 线程函数 
+void thfunc(int n, int m,int *k, char s[]) 
+{
+	cout <<"in thfunc:n="<<n<<",m="<<m<<",k="<<*k<<",s:"<<s<<endl;
+	*k = 5000; //修改k
+}
+
+int main(int argc, char* argv[])
+{
+	int n = 110, m=120, k=5;
+	char str[] = "hello world";
+
+	//定义线程对象，并传入 【多个参数】
+	thread t(thfunc, n,m,&k,str);
+	t.detach(); //分离线程
+
+	cout <<"k="<<k<<endl; 
+	pthread_exit(NULL); //main 线程结束，但进程并不会退出，下面一句不会执行
+
+	cout <<"This line will not run..."<<endl;
+	return 0;
+}
+```
+
+
+### 通过移动构造函数来启动线程
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for
+
+#include <unistd.h>  // sleep 
+using namespace std;
+
+
+void fun(int & n) // 线程函数 
+{
+	cout<<"fun: "<<n<<endl;
+	n+=20;
+	this_thread::sleep_for(chrono::milliseconds(10)); //等待10毫秒
+}
+
+int main(int argc, char* argv[])
+{
+	int n = 0;
+	cout <<"n="<<n<<endl;
+	n = 10;
+	thread t1(fun, ref(n)); // ref(n)是取n的引用
+	thread t2(move(t1));// t2执行fun, t1不是 thread 对象
+	t2.join();//等待t2执行完毕
+
+	cout<<"n="<<n<<endl;
+	return 0;
+}
+```
+
+
+### 线程的标识符 
+线程的标识符（ID）可以用来唯一标识某个thread
+对象所对应的线程，这样可以用来区别不同的线程。
+两个标识符相同的thread对象，所代表的线程是同一个线程，
+或者代表这2个对象都还没有线程。
+
+类thread提供了成员函数getid来获取线程ID
+```cpp
+thread::id  get_id();
+```
+id是线程标识符的类型，它是类thread的成员，用来唯一
+标识某个线程。
+
+### 线程比较
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for  std::this_thread::get_id
+
+#include <unistd.h>  // sleep 
+using namespace std;
+
+thread::id main_thread_id = this_thread::get_id();//获取主线程id
+
+void is_main_thread()
+{
+	if(main_thread_id == this_thread::get_id())
+	{
+		cout <<"This is the main thread."<<endl;
+	}
+	else
+	{
+		cout <<"This is not the main thread."<<endl;
+	}
+}
+
+
+int main(int argc, char* argv[])
+{
+	is_main_thread(); // is_main_thread 作为 main 线程的普通函数调用
+	thread th(is_main_thread); // is_main_thread 作为线程函数使用
+	th.join(); //等待 th结束
+
+	return 0;
+}
+```
+
+
+### 当前线程 this_thread 
+this_thread是一个命名空间（namespace），用来表示当前线程，
+主要作用是集合一些函数来访问当前线程，
+一共有4个函数：
+get_id、yield、sleep_until、sleep_for。
+
+调用函数 yield 的线程将让出自己的CPU时间片，
+以便其他线程有机会运行，声明如下：
+```cpp
+void yield();
+```
+
+
+
+### 线程赛跑排名次
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for  std::this_thread::get_id
+
+#include <atomic>  // std::atomic
+#include <unistd.h>  // sleep 
+using namespace std;
+
+atomic<bool> ready(false);  //定义全局变量
+
+void thfunc(int id)
+{
+	while(!ready) //一直等待，直到main线程中重置全局变量 ready
+	{
+		this_thread::yield();  //让出自己的 CPU 时间片
+	}
+
+	for(volatile int i=0;i<10000000000;++i)
+	{}
+	cout <<id<<",";//累加完毕后，打印本线程的序号，这样最终输出的是排名，先完成先打印
+}
+
+int main(int argc, char* argv[])
+{
+	thread threads[10];   //定义 10 个线程对象
+	cout<<"race of 10 threads that count to 1 million:"<<endl;
+	for(int i=0;i<10;++i)
+	{
+		//启动线程，把i当做参数传入线程函数，用于标记线程的序号
+		threads[i] = thread(thfunc,i);
+	}
+
+	ready = true; //重置全局变量
+	for(auto & th: threads)
+	{
+		th.join(); //等待10个线程全部结束
+	}
+
+	cout <<endl<<endl;
+	return 0;
+}
+```
+
+
+### 让线程暂停一段时间
+命名空间 this_thread 还有2个函数，即 sleep_until、sleep_for，
+用来阻塞线程，暂停执行一段时间。
+
+函数 sleep_until 声明如下：
+```cpp
+template <class Clock,class Duration >
+void sleep_until(cosnt chrono::time_point<Clock, Duration>& abs_time);
+```
+abs_time 表示函数阻塞线程到abs_time时间点，到了这个时间点后再继续执行。
+
+函数 sleep_for 的功能类似
+```cpp
+template <class Rep, class Period>
+void sleep_for(const chrono::duration<Rep, Period>& rel_time);
+```
+rel_time 表示线程挂起的时间段，在这段时间内线程暂停执行。
+
+
+### 暂停线程到下一分钟
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>    // std::chrono::seconds
+#include <iostream>  // std::cout
+#include <thread>    // std::thread, std::this_thread::sleep_for  std::this_thread::get_id std::this_thread::sleep_until
+
+#include <ctime>  //std::time_t, std::tm, std::localtime, std::mktime
+#include <time.h>
+#include <stddef.h>
+#include <atomic>  // std::atomic
+#include <unistd.h>  // sleep 
+using namespace std;
+
+void getNowTime()  //获取并打印当前时间
+{
+	timespec time;
+	struct tm nowTime;
+	clock_gettime(CLOCK_REALTIME, &time);  //获取相对于1970到现在的秒数
+
+	localtime_r(&time.tv_sec, &nowTime);
+	char current[1024];
+	printf(
+		"%04d-%02d-%02d  %02d:%02d:%02d\n",
+		nowTime.tm_year + 1970, 
+		nowTime.tm_mon +1, 
+		nowTime.tm_mday, 
+		nowTime.tm_hour,
+		nowTime.tm_min,
+		nowTime.tm_sec);
+}
+
+int main(int argc, char* argv[])
+{
+	using std::chrono::system_clock;
+	std::time_t  tt = system_clock::to_time_t(system_clock::now());
+	struct std::tm * ptm = std::localtime(&tt);
+	getNowTime();  //打印当前时间
+	cout <<"Waiting for the next minute to begin...."<<endl;
+
+	++ptm->tm_min; //累加一分钟
+	ptm->tm_sec = 0;  //秒数置0
+
+	//暂停执行，到下一个整分时间
+	this_thread::sleep_until(system_clock::from_time_t(mktime(ptm)));
+
+	//打印当前时间
+	getNowTime();
+
+	cout <<endl<<endl;
+	return 0;
+}
+```
+
+
+### 暂停线程5秒
+```cpp
+#include <iostream>
+#include <thread>  //std::this_thread::sleep_for
+#include <chrono>  //std::chrono::seconds
+using namespace std;
+
+int main(int argc, char* argv[])
+{
+	std::cout<<"Countdown:"<<endl;
+
+	for(int i=5;i>0;--i)
+	{
+		cout <<i<<endl;
+		this_thread::sleep_for(std::chrono::seconds(1)); //暂停1秒
+	}
+
+	cout<<"Lift off!"<<endl;
+
+	return 0;
+}
+```
 
 
 
 
 
+```txt
+现在小学生的寒假作业真不简单啊。
+想当年，我读书那会，没人辅导我做作业，
+自己也从来就没写过寒假/暑假作业。
+都是去学校了抄同桌或者学习委员的。
+
+来感受几题小学4年级的题目：
+题目1：
+有小王、小李、小张3个人，这3个人的职业是农民、工人、战士。
+1>小李比战士年龄大
+2>小王和农民不同岁
+3>农名比小张年龄小
+请问：小王、小李、小张，分别是什么职业。
 
 
+题目2：
+有54张扑克牌，大王在最后面，2个人进行抽牌，每个人可以抽取1张~4张扑克牌。
+最后抽到大王的人算输。
+如何保证你能赢？
+你是先抽还是后抽。
 
 
+题目3：
+有8个食物，每个食物有2个属性，分别是热量、脂肪。
+要求从里面取3个食物，保证热量大于X，脂肪小于Y。
+请问，有多少种取法？
+
+这就是一个组合问题。8个食物取3个，有56种取法。
+再依次判断这56种里面，有哪些是符合限制条件的。
+（我是用了计算机判断，手算的话不知道要 算到何年何月）
 
 
+题目4：
+有2袋大米，总共重180kg。
+把第1袋里面取出10kg放入第2袋，
+则他们重量相同。
+问题：第1袋大米多少kg，第2袋大米多少kg？
 
+小学4年级，还没有学过二元一次方程，
+不能用二元一次方程求解。
+你该如何解题。
 
-
+```
 
 
 

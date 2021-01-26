@@ -326,22 +326,69 @@ int main(void)
 ```
 
 ## 读写锁
+读写锁是多线程同步的另一种机制。
+
+1.如果一个线程用读锁锁定了临界区，
+那么其他线程也可以用读锁来进入临界区，
+这样就可以有多个线程并行操作。
+这个时候，如果再用写锁加锁就会发生阻塞，
+写锁请求阻塞后，后面继续有读锁来请求时，
+这些后来的读锁都将会被阻塞。
+这样避免了读锁长期占用资源，防止写锁饥饿。
+
+2.如果一个线程用写锁锁住了临界区，
+那么其他线程无论是读锁还是写锁都会发生阻塞。
+
+POSIX 库中用类型 pthread_rwlock_t 来定义一个互斥锁，
+pthread_rwlock_t 是一个联合体类型。
 
 
+### 读写锁的初始化
+```cpp
+pthread_rwlock_t  rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 
+int pthread_rwlock_init(pthread_rwlock_t *restrict rwlock, 
+const pthread_rwlockattr_t *restrict attr);
+```
 
 
+### 读写锁的上锁和解锁
+读模式下的上锁函数有 pthread_rwlock_rdlock 和
+pthread_rwlock_tryrdlock。
+
+```cpp
+int pthread_rwlock_rdlock(pthread_rwlock_t *rwlock);
+
+int pthread_rwlock_tryrdlock(pthread_rwlock_t *rwlock);
+
+```
+
+写模式下的读写锁： pthread_rwlock_wrlock 和 
+pthread_rwlock_trywrlock 。
+```cpp
+int pthread_rwlock_wrlock(pthread_rwlock_t *rwlock);
+
+int pthread_rwlock_trywrlock(pthread_rwlock_t *rwlock);
+
+```
+
+解锁
+```cpp
+int pthread_rwlock_unlock(pthread_rwlock_t *rwlock);
+
+```
+
+读写锁的销毁
+```cpp
+int pthread_rwlock_destroy(pthread_rwlock_t *rwlock);
+```
+
+### 互斥锁和读写锁速度大PK
+```cpp
 
 
-
-
-
-
-
-
-
-
+```
 
 
 

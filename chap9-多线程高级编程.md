@@ -386,22 +386,128 @@ int pthread_rwlock_destroy(pthread_rwlock_t *rwlock);
 
 ### 互斥锁和读写锁速度大PK
 ```cpp
+```
 
+条件变量 pthread_cond_t
+```cpp
+#include <pthread.h>
+pthread_cond_t  cond;
+```
+
+条件变量初始化
+```cpp
+静态初始化
+pthread_cond_t cond =  PTHREAD_COND_INITIALIZER;
+
+
+动态初始化
+int pthread_cond_init(pthread_cond_t* cond, pthread_condattr_t* cond_attr);
 
 ```
 
+等待条件变量
+```cpp
+int pthread_cond_wait(pthread_cond_t* restrict cond,
+pthread_mutex_t * restrict mutex);
+
+```
+为了防止多个线程同时请求函数 pthread_cond_wait 形成竞争，
+因此条件变量必须和一个互斥锁联合使用。
+
+如果条件不满足，调用 pthread_cond_wait 会发生这些
+原子操作：
+线程将 mutex 解锁、线程被条件变量cond阻塞。
+这是一个原子操作，不会被打断。
+
+
+唤醒等待条件变量的线程
+```cpp
+// 唤醒一个等待该条件变量的线程
+int pthread_cond_signal(pthread_cond_t* cond);
+
+// 唤醒所有等待该条件变量的线程
+int pthread_cond_broadcase(pthread_cond_t* cond);
+```
+
+条件变量的销毁
+```cpp
+int pthread_cond_destroy(pthread_cond_t *cond);
+```
+
+### 找出1~20中能整除3的整数
+```cpp
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER; //初始化互斥锁
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;//初始化条件变量
+
+void *thread1(void *);
+void *thread2(void *);
+
+int i=1;  //注意，这里的i是全局变量
+
+int main(void)
+{
+	pthread_t t_a;
+	pthread_t t_b;
+
+	pthread_create(&t_a, NULL, thread2, (void *)NULL);//创建线程 t_a
+	pthread_create(&t_b, NULL, thread1, (void *)NULL);//创建线程 t_b
+
+	pthread_join(t_b,NULL);//等待进程 t_b 结束
+
+	pthread_mutex_destroy(&mutex);
+	pthread_cond_destroy(&cond);
+	
+	exit(0);
+	return 0;
+}
+
+void *thread1(void *junk)
+{
+	  //注意，这里的i是全局变量
+	for(i=1;i<=20;i++)
+	{
+		pthread_mutex_lock(&mutex);//锁住互斥锁
+
+		if(i%3 ==0)
+		{
+			pthread_cond_signal(&cond);//唤醒等待条件变量 cond 的线程
+		}
+		else 
+		{
+			printf("thread1:%d\r\n", i);//打印不能整除3 的i
+		}
+		pthread_mutex_unlock(&mutex);//解锁互斥锁
+		sleep(1);
+	}
+}
 
 
 
+void *thread2(void *junk)
+{
+	while(i<20){
+		printf("-------->>>----while:%d\r\n",i);
+		pthread_mutex_lock(&mutex);//锁住互斥锁
 
+		if(i%3 !=0)
+		{
+			// pthread_cond_wait 会对mutex解锁
+			pthread_cond_wait(&cond, &mutex);//等待条件变量
+		}
 
+		printf("---------------------thread2:%d\r\n",i);//打印能整除3的i
 
-
-
-
-
-
-
+		pthread_mutex_unlock(&mutex);//解锁互斥锁
+		sleep(1);
+		i++;
+	}
+}
+```
 
 
 

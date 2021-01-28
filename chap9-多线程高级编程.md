@@ -510,6 +510,98 @@ void *thread2(void *junk)
 ```
 
 
+## C++11/14 中的线程同步
+C++11/14 提供了两种方式进行线程同步，
+即互斥锁和条件变量。
+一线实际编程中用的较多的是互斥锁。
+
+互斥锁的工作流程是：
+初始化一个互斥锁，
+在进入临界区前把互斥锁加锁（防止其他线程进入临界区），
+退出临界区的时候把互斥锁解锁（让别的线程有机会进入临界区），
+最后不用互斥锁的时候就销毁它。
+
+C++11中与互斥锁相关的类（包括锁类型）
+和函数都声明在头文件<mutex>中，
+如果需要使用互斥锁相关的类，
+就必须包含头文件<mutex>。
+
+C++11 中的互斥锁有4种，并对应着4种不同的类。
+
+ - > 基本互斥锁，对应的类为 std::mutex
+ - > 递归互斥锁，对应的类为 std::recursive_mutex
+ - > 定时互斥锁，对应的类为 std::time_mutex
+ - > 定时递归互斥锁，对应的类为 std::time_mutex
+
+```txt
+         类 std::mutex 的成员函数
+-------------------------------------------------
+mutex           构造函数
+-------------------------------------------------
+lock            互斥锁上锁
+-------------------------------------------------
+Try_lock        如果互斥锁没有上锁，则上锁
+-------------------------------------------------
+native_handle   得到本地互斥锁句柄
+-------------------------------------------------
+```
+
+
+### 多线程统计计数器到10万
+```cpp
+#include <iostream>  // std::cout
+#include <thread>    // std::thread
+#include <mutex>     // std::mutex
+using namespace std;
+
+volatile int counter(0);  //定义一个全局变量，当作计数器，用于累加
+std::mutex mtx; //用于包含 counter 的互斥锁
+
+void thrfunc()
+{
+	for(int i=0;i<10000;++i)
+	{
+		mtx.lock(); // 互斥锁上锁
+		++counter;  // 计数器累加
+		mtx.unlock(); // 互斥锁解锁 
+	}
+}
+
+int main(int argc, const char* argv[])
+{
+	std::thread threads[10];
+
+	for(int i=0;i<10;++i)
+	{
+		threads[i] = std::thread(thrfunc); // 启动10个线程
+	}
+
+	for(auto & th:threads)
+	{
+		th.join();//等待10个线程结束
+	}
+
+	cout <<"count to "<<counter<<" successfully "<<endl;
+
+	return 0;
+}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
